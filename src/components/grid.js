@@ -19,7 +19,6 @@ const aMinorPentatonic = [
   "D5",
   "E5",
   "G5",
-  "A6",
 ];
 const randomNote = () =>
   aMinorPentatonic[Math.floor(Math.random() * aMinorPentatonic.length)];
@@ -33,23 +32,48 @@ class Grid extends React.Component {
     this.audioCtx = new AudioContext();
     this.state = {
       grid: this.makeGrid(),
+      agent1: { loc: [0, 0] },
     };
   }
+
   componentWillMount() {
     this.scheduleTick();
   }
+
   componentWillUnmount() {
     clearTimeout(this.timer);
   }
 
   tick = () => {
     console.log("tick");
-    this.scheduleTick();
+
+    let { agent1, grid } = this.state;
+    let [x, y] = agent1.loc;
+
+    const dir = grid[y][x].direction;
+    switch (dir) {
+      case "left":
+        x -= 1;
+        break;
+      case "right":
+        x += 1;
+        break;
+      case "up":
+        y -= 1;
+        break;
+      case "down":
+        y += 1;
+        break;
+    }
+    x = (x + width) % width;
+    y = (y + height) % width;
+    agent1.loc = [x, y];
+    this.setState({ agent1 }, () => this.scheduleTick());
   };
 
   scheduleTick = () => {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.tick(), 1000);
+    this.timer = setTimeout(() => this.tick(), 180);
   };
 
   playNote = (freq) => {
@@ -69,20 +93,21 @@ class Grid extends React.Component {
     // Add low pass filter
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = 1200;
-    filter.Q.value = 15;
+    filter.frequency.value = 2000;
+    filter.Q.value = 1;
     // Connect via filter
     osc.connect(filter);
     filter.connect(audioCtx.destination);
 
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.24);
+    osc.stop(audioCtx.currentTime + 0.15);
     console.log("clicked");
   };
 
   makeGrid = () => {
     let directions = [
-      ["right", "down", "right", "down", "right", "down"],
+      //["right", "down", "right", "down", "right", "down"],
+      ["right", "right", "right", "down", "right", "down"],
       ["up", "left", "up", "down", "up", "left"],
       ["right", "right", "up", "right", "right", "down"],
       ["up", "left", "left", "down", "left", "left"],
@@ -106,8 +131,7 @@ class Grid extends React.Component {
   };
 
   render() {
-    const { grid } = this.state;
-    console.log(grid);
+    const { grid, agent1 } = this.state;
     return (
       <div>
         <div className="grid grid-cols-6 gap-4">
@@ -119,10 +143,14 @@ class Grid extends React.Component {
                   freq={grid[y][x].freq}
                   direction={grid[y][x].direction}
                   playNote={this.playNote}
+                  active={y == agent1.loc[0] && x == agent1.loc[1]}
                 />
               </div>
             ))
           )}
+        </div>
+        <div>
+          Agent location: {agent1.loc[0]}, {agent1.loc[1]}
         </div>
       </div>
     );
