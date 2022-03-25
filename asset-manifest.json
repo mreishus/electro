@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/electro/static/css/main.073c9b0a.css",
+    "main.js": "/electro/static/js/main.f03e7299.js",
+    "static/js/787.e728785f.chunk.js": "/electro/static/js/787.e728785f.chunk.js",
+    "index.html": "/electro/index.html",
+    "main.073c9b0a.css.map": "/electro/static/css/main.073c9b0a.css.map",
+    "main.f03e7299.js.map": "/electro/static/js/main.f03e7299.js.map",
+    "787.e728785f.chunk.js.map": "/electro/static/js/787.e728785f.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.073c9b0a.css",
+    "static/js/main.f03e7299.js"
+  ]
+}
