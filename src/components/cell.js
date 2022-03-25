@@ -1,6 +1,12 @@
 import React from "react";
 import classNames from "classnames";
 
+const dirDisplay = {
+  right: "→",
+  left: "←",
+  up: "↑",
+  down: "↓",
+};
 class Cell extends React.Component {
   componentDidUpdate(prevProps) {
     const { playNote, freq, active } = this.props;
@@ -15,7 +21,7 @@ class Cell extends React.Component {
     });
     return (
       <div className={divClass}>
-        {Math.round(freq)} {direction}
+        {dirDisplay[direction]}
         <button onClick={() => playNote(freq)}>B</button>
       </div>
     );

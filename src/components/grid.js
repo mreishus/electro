@@ -4,24 +4,26 @@ import Cell from "./cell.js";
 import getFrequency from "../util/getFrequency";
 
 const aMinorPentatonic = [
-  "A3",
-  "C3",
-  "D3",
-  "E3",
-  "G3",
-  "A4",
   "C4",
   "D4",
   "E4",
   "G4",
-  "A5",
+  "A4",
   "C5",
   "D5",
   "E5",
   "G5",
+  "A5",
+  "C6",
 ];
 const randomNote = () =>
   aMinorPentatonic[Math.floor(Math.random() * aMinorPentatonic.length)];
+
+const getNote = (x, y) => {
+  let possibleNotes = aMinorPentatonic;
+  let i = (x + y) % possibleNotes.length;
+  return possibleNotes[i];
+};
 
 const width = 6;
 const height = 6;
@@ -32,7 +34,13 @@ class Grid extends React.Component {
     this.audioCtx = new AudioContext();
     this.state = {
       grid: this.makeGrid(),
-      agent1: { loc: [0, 0] },
+      agents: [
+        { loc: [0, 0], period: 1 },
+        { loc: [5, 0], period: 2 },
+        { loc: [0, 5], period: 4 },
+        { loc: [5, 5], period: 8 },
+      ],
+      tickNum: 0,
     };
   }
 
@@ -45,30 +53,36 @@ class Grid extends React.Component {
   }
 
   tick = () => {
-    console.log("tick");
+    let { agents, grid, tickNum } = this.state;
 
-    let { agent1, grid } = this.state;
-    let [x, y] = agent1.loc;
+    agents.forEach((agent, i) => {
+      if (tickNum % agent.period !== 0) {
+        return;
+      }
+      let [x, y] = agent.loc;
+      const dir = grid[y][x].direction;
+      switch (dir) {
+        case "left":
+          x -= 1;
+          break;
+        case "right":
+          x += 1;
+          break;
+        case "up":
+          y -= 1;
+          break;
+        case "down":
+          y += 1;
+          break;
+      }
+      x = (x + width) % width;
+      y = (y + height) % width;
+      agent.loc = [x, y];
+      agents[i] = agent;
+    });
 
-    const dir = grid[y][x].direction;
-    switch (dir) {
-      case "left":
-        x -= 1;
-        break;
-      case "right":
-        x += 1;
-        break;
-      case "up":
-        y -= 1;
-        break;
-      case "down":
-        y += 1;
-        break;
-    }
-    x = (x + width) % width;
-    y = (y + height) % width;
-    agent1.loc = [x, y];
-    this.setState({ agent1 }, () => this.scheduleTick());
+    tickNum = (tickNum + 1) % 8;
+    this.setState({ agents, tickNum }, () => this.scheduleTick());
   };
 
   scheduleTick = () => {
@@ -80,6 +94,8 @@ class Grid extends React.Component {
     const { audioCtx } = this;
     let osc = audioCtx.createOscillator();
 
+    let time = audioCtx.currentTime;
+
     // console.log(wavetable);
     // const wave = audioCtx.createPeriodicWave(wavetable.real, wavetable.imag);
     // osc.setPeriodicWave(wave);
@@ -87,27 +103,39 @@ class Grid extends React.Component {
     osc.type = "sawtooth";
     osc.frequency.value = freq;
 
-    // Direct connection
-    // osc.connect(audioCtx.destination);
-
     // Add low pass filter
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = 2000;
-    filter.Q.value = 1;
-    // Connect via filter
-    osc.connect(filter);
-    filter.connect(audioCtx.destination);
+    filter.frequency.value = 2500;
+    //filter.Q.value = 10;
+
+    // Simple attack/release envelope
+    // From https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Advanced_techniques
+    let noteLength = 0.4;
+    let attackTime = 0.0001;
+    let releaseTime = 0.15;
+
+    let sweepEnv = audioCtx.createGain();
+    sweepEnv.gain.cancelScheduledValues(time);
+    sweepEnv.gain.setValueAtTime(0, time);
+    // set our attack
+    sweepEnv.gain.linearRampToValueAtTime(1, time + attackTime);
+    // set our release
+    sweepEnv.gain.linearRampToValueAtTime(0, time + noteLength - releaseTime);
+
+    // Direct connection
+    // osc.connect(audioCtx.destination);
+    // Connect: OSC -> ENV -> FILTER -> OUTPUT
+    osc.connect(sweepEnv).connect(filter).connect(audioCtx.destination);
 
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.15);
-    console.log("clicked");
+    osc.stop(audioCtx.currentTime + noteLength);
   };
 
   makeGrid = () => {
     let directions = [
-      //["right", "down", "right", "down", "right", "down"],
-      ["right", "right", "right", "down", "right", "down"],
+      // ["right", "right", "right", "down", "right", "down"],
+      ["right", "down", "right", "down", "right", "down"],
       ["up", "left", "up", "down", "up", "left"],
       ["right", "right", "up", "right", "right", "down"],
       ["up", "left", "left", "down", "left", "left"],
@@ -118,7 +146,8 @@ class Grid extends React.Component {
     for (let y = 0; y < height; y += 1) {
       const row = [];
       for (let x = 0; x < width; x += 1) {
-        let note = randomNote();
+        // let note = randomNote();
+        let note = getNote(x, y);
         let item = {
           freq: getFrequency(note),
           direction: directions[y][x],
@@ -131,26 +160,27 @@ class Grid extends React.Component {
   };
 
   render() {
-    const { grid, agent1 } = this.state;
+    const { grid, agents } = this.state;
     return (
       <div>
         <div className="grid grid-cols-6 gap-4">
           {grid.map((row, y) =>
-            row.map((cell, x) => (
-              <div key={x + "--" + y}>
-                {/* cell {x},{y}  */}
-                <Cell
-                  freq={grid[y][x].freq}
-                  direction={grid[y][x].direction}
-                  playNote={this.playNote}
-                  active={y == agent1.loc[0] && x == agent1.loc[1]}
-                />
-              </div>
-            ))
+            row.map((cell, x) => {
+              let matchingAgents = agents.filter(
+                (agent) => y === agent.loc[0] && x === agent.loc[1]
+              );
+              return (
+                <div key={x + "--" + y}>
+                  <Cell
+                    freq={grid[y][x].freq}
+                    direction={grid[y][x].direction}
+                    playNote={this.playNote}
+                    active={matchingAgents.length > 0}
+                  />
+                </div>
+              );
+            })
           )}
-        </div>
-        <div>
-          Agent location: {agent1.loc[0]}, {agent1.loc[1]}
         </div>
       </div>
     );
