@@ -3,7 +3,11 @@ import classNames from "classnames";
 
 const dirDisplay = {
   right: "→",
+  rightup: "↗",
+  rightdown: "↘",
   left: "←",
+  leftup: "↖",
+  leftdown: "↙",
   up: "↑",
   down: "↓",
 };
