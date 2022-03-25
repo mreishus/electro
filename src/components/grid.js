@@ -4,6 +4,11 @@ import Cell from "./cell.js";
 import getFrequency from "../util/getFrequency";
 
 const aMinorPentatonic = [
+  "C2",
+  "D2",
+  "E2",
+  "G2",
+  "A2",
   "C3",
   "D3",
   "E3",
@@ -121,7 +126,7 @@ class Grid extends React.Component {
     // Add low pass filter
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = 8000;
+    filter.frequency.value = 4000;
     filter.Q.value = 0;
 
     // Simple attack/release envelope
@@ -157,22 +162,28 @@ class Grid extends React.Component {
     feedback.connect(delay);
     delay.connect(audioCtx.destination);
 
-    let osc = audioCtx.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.value = freq;
+    let osc1 = audioCtx.createOscillator();
+    osc1.type = "sawtooth";
+    osc1.frequency.value = freq;
+
+    let gain1 = audioCtx.createGain();
+    gain1.gain.value = 0.7;
 
     let osc2 = audioCtx.createOscillator();
     osc2.type = "sine";
     osc2.frequency.value = freq;
 
+    let gain2 = audioCtx.createGain();
+    gain2.gain.value = 0.5;
+
     // Direct connection
     // osc.connect(audioCtx.destination);
     // Connect: OSC -> ENV -> FILTER -> OUTPUT
-    osc.connect(sweepEnv).connect(filter).connect(audioCtx.destination);
-    osc.start();
-    osc.stop(time + attackTime + holdTime + releaseTime);
+    osc1.connect(gain1).connect(sweepEnv).connect(filter).connect(audioCtx.destination);
+    osc1.start();
+    osc1.stop(time + attackTime + holdTime + releaseTime);
 
-    osc2.connect(sweepEnv).connect(filter).connect(audioCtx.destination);
+    osc2.connect(gain2).connect(sweepEnv).connect(filter).connect(audioCtx.destination);
     osc2.start();
     osc2.stop(time + attackTime + holdTime + releaseTime);
   };
@@ -223,33 +234,39 @@ class Grid extends React.Component {
   render() {
     const { grid, agents } = this.state;
     return (
-      <div>
-        <div className="grid grid-cols-6 gap-4">
-          {grid.map((row, y) =>
-            row.map((cell, x) => {
-              let matchingAgents = agents.filter(
-                (agent) => x === agent.loc[0] && y === agent.loc[1]
-              );
-              let whichAgentMatches = agents.findIndex(
-                (agent) => x === agent.loc[0] && y === agent.loc[1]
-              );
-              return (
-                <div key={x + "--" + y}>
-                  <Cell
-                    onClick={() => this.changeDirection(y, x)}
-                    freq={grid[y][x].freq}
-                    direction={grid[y][x].direction}
-                    playNote={this.playNote}
-                    active={matchingAgents.length > 0}
-                    whichAgentMatches={whichAgentMatches}
-                  />
-                </div>
-              );
-            })
-          )}
+      <>
+        <div>
+          <div className="grid grid-cols-6 gap-4">
+            {grid.map((row, y) =>
+              row.map((cell, x) => {
+                let matchingAgents = agents.filter(
+                  (agent) => x === agent.loc[0] && y === agent.loc[1]
+                );
+                let whichAgentMatches = agents.findIndex(
+                  (agent) => x === agent.loc[0] && y === agent.loc[1]
+                );
+                return (
+                  <div key={x + "--" + y}>
+                    <Cell
+                      onClick={() => this.changeDirection(y, x)}
+                      freq={grid[y][x].freq}
+                      direction={grid[y][x].direction}
+                      playNote={this.playNote}
+                      active={matchingAgents.length > 0}
+                      whichAgentMatches={whichAgentMatches}
+                    />
+                  </div>
+                );
+              })
+            )}
+            {/* <div>{JSON.stringify(agents)}</div> */}
+          </div>
         </div>
-        {/* <div>{JSON.stringify(agents)}</div> */}
-      </div>
+        <div>Click on arrows to change their direction</div>
+        <div>
+          Edit source code to change scales, tempo, agents, or oscillators
+        </div>
+      </>
     );
   }
 }
