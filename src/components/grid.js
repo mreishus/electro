@@ -1,9 +1,14 @@
 import React from "react";
-// import wavetable from "../wavetable/piano";
+import wavetable from "../wavetable/piano";
 import Cell from "./cell.js";
 import getFrequency from "../util/getFrequency";
 
 const aMinorPentatonic = [
+  "C3",
+  "D3",
+  "E3",
+  "G3",
+  "A3",
   "C4",
   "D4",
   "E4",
@@ -16,11 +21,31 @@ const aMinorPentatonic = [
   "A5",
   "C6",
 ];
+const aMinorOrCMajor = [
+  "C3",
+  "D3",
+  "E3",
+  "F3",
+  "G3",
+  "A3",
+  "B3",
+  "C4",
+  "D4",
+  "E4",
+  "F4",
+  "G4",
+  "A4",
+  "B4",
+  "C5",
+];
 const randomNote = () =>
   aMinorPentatonic[Math.floor(Math.random() * aMinorPentatonic.length)];
 
 const getNote = (x, y) => {
   let possibleNotes = aMinorPentatonic;
+  // possibleNotes = aMinorOrCMajor.reverse();
+  // // possibleNotes = aMinorPentatonic;
+  // possibleNotes = ["F#4", "A#4", "B4", "F#4"];
   let i = (x + y) % possibleNotes.length;
   return possibleNotes[i];
 };
@@ -44,7 +69,7 @@ class Grid extends React.Component {
     };
   }
 
-  componentWillMount() {
+  componentDidMount() {
     this.scheduleTick();
   }
 
@@ -92,44 +117,80 @@ class Grid extends React.Component {
 
   playNote = (freq) => {
     const { audioCtx } = this;
-    let osc = audioCtx.createOscillator();
-
-    let time = audioCtx.currentTime;
-
-    // console.log(wavetable);
-    // const wave = audioCtx.createPeriodicWave(wavetable.real, wavetable.imag);
-    // osc.setPeriodicWave(wave);
-
-    osc.type = "sawtooth";
-    osc.frequency.value = freq;
 
     // Add low pass filter
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = 2500;
-    //filter.Q.value = 10;
+    filter.frequency.value = 8000;
+    filter.Q.value = 0;
 
     // Simple attack/release envelope
     // From https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Advanced_techniques
-    let noteLength = 0.4;
-    let attackTime = 0.0001;
-    let releaseTime = 0.15;
+    let attackTime = 0.01;
+    let holdTime = 0.05;
+    let releaseTime = 0.5;
+    let time = audioCtx.currentTime;
 
     let sweepEnv = audioCtx.createGain();
     sweepEnv.gain.cancelScheduledValues(time);
-    sweepEnv.gain.setValueAtTime(0, time);
-    // set our attack
-    sweepEnv.gain.linearRampToValueAtTime(1, time + attackTime);
-    // set our release
-    sweepEnv.gain.linearRampToValueAtTime(0, time + noteLength - releaseTime);
+    sweepEnv.gain.setValueAtTime(0.01, time);
+    // Attack
+    sweepEnv.gain.exponentialRampToValueAtTime(0.9, time + attackTime);
+    // Sustain
+    sweepEnv.gain.exponentialRampToValueAtTime(
+      0.9,
+      time + attackTime + holdTime
+    );
+    // Release
+    sweepEnv.gain.exponentialRampToValueAtTime(
+      0.01,
+      time + attackTime + holdTime + releaseTime
+    );
+
+    const delay = audioCtx.createDelay();
+    delay.delayTime.value = 0.2;
+
+    const feedback = audioCtx.createGain();
+    feedback.gain.value = 0.3;
+
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(audioCtx.destination);
+
+    let osc = audioCtx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = freq;
+
+    let osc2 = audioCtx.createOscillator();
+    osc2.type = "sine";
+    osc2.frequency.value = freq;
 
     // Direct connection
     // osc.connect(audioCtx.destination);
     // Connect: OSC -> ENV -> FILTER -> OUTPUT
     osc.connect(sweepEnv).connect(filter).connect(audioCtx.destination);
-
     osc.start();
-    osc.stop(audioCtx.currentTime + noteLength);
+    osc.stop(time + attackTime + holdTime + releaseTime);
+
+    osc2.connect(sweepEnv).connect(filter).connect(audioCtx.destination);
+    osc2.start();
+    osc2.stop(time + attackTime + holdTime + releaseTime);
+  };
+
+  changeDirection = (y, x) => {
+    let { grid } = this.state;
+    grid[y][x].direction = this.rotate(grid[y][x].direction);
+    this.setState({ grid });
+  };
+
+  rotate = (direction) => {
+    let map = {
+      right: "down",
+      down: "left",
+      left: "up",
+      up: "right",
+    };
+    return map[direction] || "up";
   };
 
   makeGrid = () => {
@@ -146,8 +207,8 @@ class Grid extends React.Component {
     for (let y = 0; y < height; y += 1) {
       const row = [];
       for (let x = 0; x < width; x += 1) {
-        // let note = randomNote();
-        let note = getNote(x, y);
+        let note = randomNote();
+        // let note = getNote(x, y);
         let item = {
           freq: getFrequency(note),
           direction: directions[y][x],
@@ -167,21 +228,27 @@ class Grid extends React.Component {
           {grid.map((row, y) =>
             row.map((cell, x) => {
               let matchingAgents = agents.filter(
-                (agent) => y === agent.loc[0] && x === agent.loc[1]
+                (agent) => x === agent.loc[0] && y === agent.loc[1]
+              );
+              let whichAgentMatches = agents.findIndex(
+                (agent) => x === agent.loc[0] && y === agent.loc[1]
               );
               return (
                 <div key={x + "--" + y}>
                   <Cell
+                    onClick={() => this.changeDirection(y, x)}
                     freq={grid[y][x].freq}
                     direction={grid[y][x].direction}
                     playNote={this.playNote}
                     active={matchingAgents.length > 0}
+                    whichAgentMatches={whichAgentMatches}
                   />
                 </div>
               );
             })
           )}
         </div>
+        {/* <div>{JSON.stringify(agents)}</div> */}
       </div>
     );
   }

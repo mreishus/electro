@@ -15,14 +15,19 @@ class Cell extends React.Component {
     }
   }
   render() {
-    const { playNote, direction, freq, active } = this.props;
+    const { playNote, direction, freq, active, onClick, whichAgentMatches } =
+      this.props;
     const divClass = classNames({
-      "bg-blue-400": active,
+      "bg-blue-400": active && whichAgentMatches === 0,
+      "bg-green-400": active && whichAgentMatches === 1,
+      "bg-red-400": active && whichAgentMatches === 2,
+      "bg-purple-400": active && whichAgentMatches === 3,
+      "cursor-pointer": true,
     });
     return (
-      <div className={divClass}>
+      <div className={divClass} onClick={onClick}>
         {dirDisplay[direction]}
-        <button onClick={() => playNote(freq)}>B</button>
+        {/* <button onClick={() => playNote(freq)}>B</button> */}
       </div>
     );
   }
